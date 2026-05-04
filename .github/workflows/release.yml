@@ -1,54 +1,56 @@
-name: Build and Release JAR
+name: Build & release
 
 on:
   push:
     tags:
-      - "v*"
-
+      - '**'
+#
 jobs:
-  release:
-    name: Build and publish release artifact
+  create-release:
+    name: "Build & release"
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
+    permissions: write-all
+    #
     steps:
-      - name: Checkout repository
+      - name: "Checkout repository"
         uses: actions/checkout@v4
-
-      - name: Set up JDK 17
+      
+      - name: "Set up JDK 17"
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: "17"
-          cache: maven
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      
+      - name: "Build JAR dev"
+        run: sh gradlew buildDev -Penv=dev
 
-      - name: Build with Maven
-        run: mvn -B clean package
-
-      - name: Resolve release files
-        id: artifacts
-        shell: bash
+      - name: "Build JAR PROD "
+        run: sh gradlew buildProd
+      
+      - name: "Copy JAR to tmp-artifacts"
         run: |
-          set -euo pipefail
-          JAR_PATH="$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -n 1)"
-          if [[ -z "${JAR_PATH}" ]]; then
-            echo "No release jar found under target/."
-            exit 1
-          fi
-          SHA_PATH="${JAR_PATH}.sha512"
-          sha512sum "${JAR_PATH}" | awk '{print $1}' > "${SHA_PATH}"
-          echo "jar_path=${JAR_PATH}" >> "$GITHUB_OUTPUT"
-          echo "sha_path=${SHA_PATH}" >> "$GITHUB_OUTPUT"
+          mkdir tmp-artifacts
+          cp build/libs/*.jar tmp-artifacts
+      
+      - name: "Create hash files"
+        run: |
+          cd tmp-artifacts
+          for jar in *.jar
+          do
+              sha512sum $jar | awk '{ print $1 }' > "${jar}.sha512"
+          done
+          cd ..
+      #   
+      - name: "Upload artifacts"
+        uses: actions/upload-artifact@v4
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          name: Package
+          path: tmp-artifacts
 
-      - name: Create or update GitHub Release
+      - name: "Create release"
+        run: gh release create ${GITHUB_REF_NAME} tmp-artifacts/* --generate-notes 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          if gh release view "${TAG}" >/dev/null 2>&1; then
-            gh release upload "${TAG}" "${{ steps.artifacts.outputs.jar_path }}" "${{ steps.artifacts.outputs.sha_path }}" --clobber
-          else
-            gh release create "${TAG}" "${{ steps.artifacts.outputs.jar_path }}" "${{ steps.artifacts.outputs.sha_path }}" --generate-notes --verify-tag
-          fi
