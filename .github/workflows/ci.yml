@@ -17,9 +17,7 @@ jobs:
           cache: gradle
       
       - name: Build JAR
-        uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
-        with:
-          arguments: build
+        run: gradle build
 
       - uses: actions/upload-artifact@v4
         with:

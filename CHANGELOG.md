@@ -17,7 +17,7 @@ Il formato segue Keep a Changelog e Semantic Versioning.
 - Aggiunta policy esplicita: ogni modifica richiede aggiornamento docs e changelog.
 - Estesa documentazione con sezione dedicata alla release automatica via GitHub Actions.
 - Semplificato `.github/workflows/release.yml`: build Gradle unico (`gradle build`) senza env dev/prod.
-- Semplificato `.github/workflows/ci.yml`: build Gradle unico (`build`) senza env dev/prod, aggiunto cache Gradle. Rimosso wrapper validation (non presente nei wrapper file).
+- Semplificato `.github/workflows/ci.yml`: build Gradle unico (`gradle build`) senza env dev/prod, aggiunto cache Gradle. Rimosso wrapper validation (non presente nei wrapper file) e action gradle/gradle-build-action (non compatibile senza wrapper).
 
 ## [1.0.0] - 2026-05-04
 
