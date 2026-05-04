@@ -1,33 +1,45 @@
 # FITP Profile Enricher
 
-Keycloak Authenticator SPI che, dopo il login via FITP/B2C, chiama Microsoft Graph
-per recuperare email, firstName e lastName dell'utente e popolarli sull'utente Keycloak.
+Authenticator SPI per Keycloak che, dopo login via FITP/B2C, chiama Microsoft Graph
+e valorizza automaticamente i campi utente:
 
-Risolve il caso in cui Azure AD B2C non emette questi claim nel token e non vogliamo
-gestire il problema lato applicazione.
+- email
+- firstName
+- lastName
+
+Obiettivo: evitare di gestire lato applicazione i casi in cui i claim profilo non
+arrivano nel token dal provider esterno.
+
+## Cosa fa
+
+Il provider viene eseguito nel Post Login Flow del provider FITP.
+
+1. Legge l'utente brokered creato/aggiornato da Keycloak.
+2. Se l'utente ha gia email, esce subito (idempotente).
+3. Se mancano dati, usa client credentials verso Microsoft Graph.
+4. Recupera i dati profilo e aggiorna utente Keycloak.
 
 ## Requisiti
 
 - Keycloak 22.0.1 (Quarkus distribution)
 - Java 17
 - Maven 3.9+
-- Un'app registration Azure con permission Microsoft Graph `User.Read.All` di tipo
-  **Application** (non Delegated) e admin consent concesso
+- App registration Azure/Entra con:
+  - permission Microsoft Graph `User.Read.All` tipo Application
+  - admin consent concesso
 
-## Struttura
+## Struttura progetto
 
-```
-fitp-enricher/
+```text
+.
 ├── pom.xml
-├── Dockerfile
 ├── README.md
 └── src/main/
     ├── java/com/hiwaymedia/keycloak/
     │   ├── FitpEnricherAuthenticator.java
     │   └── FitpEnricherAuthenticatorFactory.java
-    └── resources/
-        └── META-INF/services/
-            └── org.keycloak.authentication.AuthenticatorFactory
+    └── resources/META-INF/services/
+        └── org.keycloak.authentication.AuthenticatorFactory
 ```
 
 ## Build
@@ -36,90 +48,101 @@ fitp-enricher/
 mvn clean package
 ```
 
-Genera `target/fitp-enricher-1.0.0.jar`.
+Output: `target/fitp-enricher-1.0.0.jar`
 
-## Deploy nell'immagine Keycloak
+## Installazione nel runtime Keycloak
 
-Builda una nuova immagine Docker basata su quella custom esistente:
+### Opzione A: Keycloak container
+
+1. Copia il jar in `/opt/keycloak/providers/` nell'immagine/container.
+2. Esegui il build di Keycloak (augmentation):
 
 ```bash
-docker build -t ghcr.io/hiway-media/keycloak-apple-identity-provider-druid-22.0.1-dev:v0.3.0 .
-docker push ghcr.io/hiway-media/keycloak-apple-identity-provider-druid-22.0.1-dev:v0.3.0
+/opt/keycloak/bin/kc.sh build
 ```
 
-Poi aggiorna il tag nella job definition Nomad (campo `Config.image`) e rideploy.
+3. Avvia Keycloak normalmente.
 
-Il primo boot del nuovo container sara piu lento del solito (~30-60s extra) perche
-Keycloak rifa l'augmentation Quarkus per registrare il nuovo provider.
+Nota: il primo avvio dopo nuova estensione puo essere piu lento.
+
+### Opzione B: distribuzione custom gia esistente
+
+Se usi una pipeline con immagine custom, includi il jar nella build immagine,
+pubblica il nuovo tag e fai redeploy dell'ambiente.
 
 ## Configurazione in Keycloak
 
-### 1. Crea un Authentication Flow
+### 1. Crea flow post-login
 
-- **Authentication > Flows > Create flow**
+- Authentication > Flows > Create flow
 - Name: `fitp post login`
-- Description: `Arricchisce profilo via Microsoft Graph dopo login FITP`
-- Top level flow type: `Basic flow`
+- Top level flow type: Basic flow
 
-### 2. Aggiungi lo step
+### 2. Aggiungi execution
 
-Dentro al flow:
+- Add step > FITP Profile Enricher
+- Requirement: Required
 
-- **Add step > FITP Profile Enricher**
-- Imposta requirement: **Required**
-- Click sull'icona ⚙️ accanto allo step e compila:
-  - **Azure Tenant ID**: il tenant ID (GUID o domain)
-  - **App Registration Client ID**: il client ID dell'app
-  - **App Registration Client Secret**: il client secret (mascherato)
-  - **Timeout HTTP (ms)**: 5000 (default OK)
-  - **Blocca login in caso di errore**: OFF (default; mettilo ON solo se preferisci
-    che il login fallisca se Graph e irraggiungibile)
-  - **Marca email come verificata**: ON (default; sicuro perche B2C verifica le email
-    in fase di signup)
+Proprieta disponibili nello step:
 
-### 3. Aggancia il flow al provider FITP
+| Campo UI | Chiave config | Obbligatorio | Default | Descrizione |
+|---|---|---:|---|---|
+| Azure Tenant ID | `graph.tenantId` | Si | - | Tenant GUID o domain |
+| App Registration Client ID | `graph.clientId` | Si | - | Client ID app registration |
+| App Registration Client Secret | `graph.clientSecret` | Si | - | Secret app registration |
+| Timeout HTTP (ms) | `graph.timeoutMs` | No | `5000` | Timeout token endpoint + Graph |
+| Blocca login in caso di errore | `graph.failOnError` | No | `false` | Se true il login fallisce su errore Graph |
+| Marca email come verificata | `graph.trustEmail` | No | `true` | Se true imposta emailVerified |
 
-- **Identity providers > FITP > Advanced settings**
-- **Post login flow**: seleziona `fitp post login`
-- **Save**
+### 3. Associa il flow al provider FITP
 
-Lascia `First login flow` invariato (es. `Multiple Identity Provider`).
+- Identity providers > FITP > Advanced settings
+- Post login flow: `fitp post login`
+- Save
 
-## Test
+## Comportamento tecnico
 
-1. Cancella eventuali utenti "nudi" (con solo username GUID, senza email) creati dai
-   tentativi precedenti
-2. Apri una finestra anonima
-3. Esegui il login dalla tua app via FITP
-4. Verifica in Keycloak admin > Users che l'utente abbia email, firstName e lastName
-   popolati
+- Idempotente: se `email` e gia presente, non chiama Graph.
+- Cache token Graph in memoria processo: evita richieste token ripetute.
+- Refresh margin token: rinnovo anticipato di circa 60 secondi.
+- Fallimento controllato:
+  - `graph.failOnError=false`: login continua
+  - `graph.failOnError=true`: login bloccato con errore interno
+
+Ordine di estrazione email da Graph:
+
+1. `mail`
+2. `otherMails[0]`
+3. `identities[]` con `signInType=emailAddress`
+
+## Test rapido
+
+1. Esegui login da utente senza profilo completo in Keycloak.
+2. Verifica utente in admin console.
+3. Controlla che siano valorizzati `email`, `firstName`, `lastName`.
 
 ## Troubleshooting
 
-Filtra i log Keycloak per il logger `com.hiwaymedia.keycloak.FitpEnricherAuthenticator`.
+Logger utile: `com.hiwaymedia.keycloak.FitpEnricherAuthenticator`
 
-| Log | Significato | Fix |
+| Errore log | Causa probabile | Azione |
 |---|---|---|
-| `Profilo arricchito oid=... email=...` | OK | Niente |
-| `Token endpoint status=401` | client secret sbagliato/scaduto | Rigenera il secret in Azure e aggiorna la config |
-| `Token endpoint status=400 AADSTS700016` | client ID sbagliato o app non esiste in quel tenant | Verifica tenantId/clientId |
-| `Graph status=403 Insufficient privileges` | manca `User.Read.All` Application o admin consent | Aggiungi/concedi in Azure |
-| `Graph status=404` | l'oid non esiste nel tenant | Verifica che il tenant configurato sia quello dove vivono gli utenti |
-
-## Comportamento
-
-- **Idempotente**: lo step verifica se l'utente ha gia l'email valorizzata. Se si,
-  esce subito senza chiamare Graph. Quindi gira "davvero" solo al primo login dopo
-  la creazione dell'utente.
-- **Token cache**: il token Graph (validita 1h) e cachato in memoria del processo
-  Keycloak. In ambiente cluster ogni nodo ha la propria cache, ma e comunque ~1
-  chiamata token endpoint/ora/nodo, irrilevante.
-- **Fail-safe**: in caso di errore Graph (timeout, 5xx, ecc.) di default il login
-  prosegue comunque (utente nudo). Se preferisci bloccare, abilita "Blocca login in
-  caso di errore" nella config.
+| `Token endpoint status=401` | secret errato o scaduto | rigenera secret e aggiorna config |
+| `AADSTS700016` | client ID o tenant errato | verifica tenant/client |
+| `Graph status=403` | permessi Graph mancanti | aggiungi `User.Read.All` Application + admin consent |
+| `Graph status=404` | utente non presente in tenant configurato | verifica tenant e oid |
 
 ## Sicurezza
 
-Il client secret viene salvato nel DB Keycloak (tabella `authenticator_config_entry`)
-in chiaro, mascherato solo nella UI. Per produzione considera l'uso di Vault SPI
-Keycloak per esternalizzare il secret.
+Il valore di `graph.clientSecret` e conservato nella configurazione autenticatore
+di Keycloak. In ambienti production valutare secret management esterno (es. vault).
+
+## Documentazione e rilascio
+
+- Documentazione operativa: `docs/OPERATIONS.md`
+- Storico modifiche: `CHANGELOG.md`
+
+Regola di manutenzione per questo repository:
+
+1. Ogni modifica funzionale deve aggiornare README o docs dedicate.
+2. Ogni modifica deve aggiungere una voce in `CHANGELOG.md`.
