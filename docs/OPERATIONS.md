@@ -57,3 +57,26 @@ Per ogni modifica al codice:
 1. Aggiornare README o documentazione in `docs/`.
 2. Aggiornare `CHANGELOG.md` nella sezione `Unreleased`.
 3. In fase di release, spostare le voci da `Unreleased` alla versione rilasciata.
+
+## 8. Release via GitHub Actions
+
+Workflow: `.github/workflows/release.yml`
+
+Trigger:
+
+- push di tag con pattern `v*`
+
+Passi eseguiti dalla pipeline:
+
+1. Setup Java 17 + cache Maven.
+2. Build con `mvn -B clean package`.
+3. Raccolta jar da `target/`.
+4. Creazione checksum `*.sha512`.
+5. Create/update GitHub Release e upload asset.
+
+Procedura operativa release:
+
+1. Verificare changelog e versione.
+2. Creare tag semantico, esempio `v1.0.1`.
+3. Pushare il tag su origin.
+4. Verificare gli asset nella pagina Releases di GitHub.

@@ -9,11 +9,13 @@ Il formato segue Keep a Changelog e Semantic Versioning.
 ### Added
 
 - Nuovo `docs/OPERATIONS.md` con runbook operativo di build, deploy e verifica.
+- Workflow GitHub Actions release (`.github/workflows/release.yml`) che su tag `v*` builda il jar Maven e lo pubblica come asset di GitHub Release (con checksum `.sha512`).
 
 ### Changed
 
 - `README.md` riscritto e riallineato al codice attuale e al flusso operativo reale.
 - Aggiunta policy esplicita: ogni modifica richiede aggiornamento docs e changelog.
+- Estesa documentazione con sezione dedicata alla release automatica via GitHub Actions.
 
 ## [1.0.0] - 2026-05-04
 

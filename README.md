@@ -142,6 +142,25 @@ di Keycloak. In ambienti production valutare secret management esterno (es. vaul
 - Documentazione operativa: `docs/OPERATIONS.md`
 - Storico modifiche: `CHANGELOG.md`
 
+## Release automatica con GitHub Actions
+
+La pipeline di release e definita in `.github/workflows/release.yml`.
+
+Comportamento:
+
+1. Trigger su push di tag che matchano `v*` (esempio: `v1.0.1`).
+2. Build Maven con `mvn -B clean package`.
+3. Individuazione del jar in `target/`.
+4. Generazione file checksum `.sha512`.
+5. Creazione release GitHub (o update se esiste gia) con upload di jar + checksum.
+
+Esempio rilascio:
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
 Regola di manutenzione per questo repository:
 
 1. Ogni modifica funzionale deve aggiornare README o docs dedicate.
