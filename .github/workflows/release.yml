@@ -22,11 +22,8 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       
-      - name: "Build JAR dev"
-        run: sh gradlew buildDev -Penv=dev
-
-      - name: "Build JAR PROD "
-        run: sh gradlew buildProd
+      - name: "Build JAR"
+        run: ./gradlew build
       
       - name: "Copy JAR to tmp-artifacts"
         run: |
