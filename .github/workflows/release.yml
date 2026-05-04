@@ -23,7 +23,7 @@ jobs:
           cache: gradle
       
       - name: "Build JAR"
-        run: ./gradlew build
+        run: gradle build
       
       - name: "Copy JAR to tmp-artifacts"
         run: |
