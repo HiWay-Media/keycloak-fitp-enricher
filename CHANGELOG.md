@@ -9,6 +9,7 @@ Il formato segue Keep a Changelog e Semantic Versioning.
 ### Added
 
 - Nuova documentazione tecnica `docs/ARCHITECTURE.md`: panoramica del sistema, diagrammi Mermaid (componenti, sequenza primo login, sequenza login successivi, logica interna GraphClient, modello dati/classi), tabella parametri di configurazione, spiegazione SPI service loader e nota sul componente legacy deprecato.
+- Nuovo documento `docs/IMPROVEMENTS.md`: analisi delle criticità individuate su `v1.1.0` (bug cache token statica multi-tenant, skip aggressivo in `preprocessFederatedIdentity`, `userPrincipalName` ignorato, dipendenze obsolete, copertura test mancante) con codice di esempio per ogni fix.
 
 ## [1.1.0] - 2026-05-05
 
