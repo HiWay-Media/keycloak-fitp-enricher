@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.hiwaymedia.keycloak"
-version = "1.0.0"
+version = "1.1.0"
 
 java {
     toolchain {
@@ -27,6 +27,13 @@ dependencies {
     // Jackson e JBoss Logging: gia nel classpath Keycloak
     compileOnly("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     compileOnly("org.jboss.logging:jboss-logging:3.5.0.Final")
+
+    // Test
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
+    testImplementation("org.mockito:mockito-core:5.5.0")
+    testImplementation("com.github.tomakehurst:wiremock-jre8-standalone:2.35.1")
+    testImplementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
+    testImplementation("org.jboss.logging:jboss-logging:3.5.0.Final")
 }
 
 tasks.jar {
@@ -36,4 +43,8 @@ tasks.jar {
 
 tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

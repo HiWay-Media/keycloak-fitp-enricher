@@ -11,13 +11,12 @@ import org.keycloak.provider.ProviderConfigProperty;
 import java.util.List;
 
 /**
- * Factory per FitpEnricherAuthenticator.
+ * DEPRECATO: usa {@link FitpEnricherIdentityProviderMapperFactory} (mapper sull'IdP FITP).
  *
- * Espone i campi di config nella UI Keycloak
- * (Authentication -> Flows -> step config). Tenant, Client ID e Client Secret
- * dell'app Azure registrata per leggere Graph sono configurati qui via UI,
- * NON nel codice.
+ * Espone i campi di config nella UI Keycloak per il vecchio Authenticator in Post Login Flow.
+ * Mantenuto per compatibilita; verra rimosso in v2.0.0.
  */
+@Deprecated
 public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
     public static final String PROVIDER_ID = "fitp-enricher";
@@ -26,6 +25,7 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
     public static final String CFG_CLIENT_ID     = "graph.clientId";
     public static final String CFG_CLIENT_SECRET = "graph.clientSecret";
     public static final String CFG_TIMEOUT_MS    = "graph.timeoutMs";
+    public static final String CFG_RETRY_COUNT   = "graph.retryCount";
     public static final String CFG_FAIL_ON_ERROR = "graph.failOnError";
     public static final String CFG_TRUST_EMAIL   = "graph.trustEmail";
 
@@ -58,8 +58,10 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getHelpText() {
-        return "Arricchisce il profilo utente chiamando Microsoft Graph dopo il login via FITP/B2C, "
-             + "popolando email, firstName e lastName che B2C non emette nei token.";
+        return "DEPRECATO: usa il mapper 'FITP Profile Enricher Mapper' sull'IdP FITP. "
+             + "Questo authenticator gira nel Post Login Flow, dopo la creazione utente: "
+             + "se il First Login Flow legge l'email il login fallisce con 'Email is null'. "
+             + "Mantenuto solo per healing legacy di utenti gia creati con record vuoto.";
     }
 
     @Override
@@ -93,8 +95,15 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
         timeoutMs.setName(CFG_TIMEOUT_MS);
         timeoutMs.setLabel("Timeout HTTP (ms)");
         timeoutMs.setType(ProviderConfigProperty.STRING_TYPE);
-        timeoutMs.setDefaultValue("5000");
+        timeoutMs.setDefaultValue("8000");
         timeoutMs.setHelpText("Timeout in millisecondi per le chiamate a Graph e al token endpoint");
+
+        ProviderConfigProperty retryCount = new ProviderConfigProperty();
+        retryCount.setName(CFG_RETRY_COUNT);
+        retryCount.setLabel("Numero retry");
+        retryCount.setType(ProviderConfigProperty.STRING_TYPE);
+        retryCount.setDefaultValue("1");
+        retryCount.setHelpText("Numero di retry su timeout / 429 / 503. Backoff fisso 250ms tra i tentativi.");
 
         ProviderConfigProperty failOnError = new ProviderConfigProperty();
         failOnError.setName(CFG_FAIL_ON_ERROR);
@@ -112,7 +121,7 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
         trustEmail.setHelpText("Se ON, l'email recuperata da Graph viene marcata come verificata. "
                 + "Sicuro perche B2C/Entra verificano l'email durante il signup.");
 
-        return List.of(tenantId, clientId, clientSecret, timeoutMs, failOnError, trustEmail);
+        return List.of(tenantId, clientId, clientSecret, timeoutMs, retryCount, failOnError, trustEmail);
     }
 
     @Override

@@ -6,6 +6,27 @@ Il formato segue Keep a Changelog e Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-05
+
+### Added
+
+- Nuovo `FitpEnricherIdentityProviderMapper` che gira in `preprocessFederatedIdentity`, PRIMA del First Login Flow. Risolve il primo login fallito con `KC-SERVICES0020: Email is null` su B2C che non emette email nei token.
+- Nuova opzione `username.source` (`email` default, `oid` legacy): impone `username = email` sull'utente Keycloak invece dell'OID/sub di B2C.
+- Nuovo helper `com.hiwaymedia.keycloak.graph.GraphClient` con token caching condiviso e retry breve su timeout / 429 / 503.
+- Nuova opzione `graph.retryCount` (default `1`) sia sul mapper sia sull'authenticator deprecato.
+- Test unit con WireMock e Mockito (`GraphClientTest`, `FitpEnricherIdentityProviderMapperTest`).
+
+### Changed
+
+- Default `graph.timeoutMs` alzato da `5000` a `8000`.
+- `FitpEnricherAuthenticator` ora delega a `GraphClient`; comportamento invariato.
+
+### Deprecated
+
+- `FitpEnricherAuthenticator` e `FitpEnricherAuthenticatorFactory`. Mantenuti registrati per compat e per healing di utenti gia esistenti con record vuoto. Verranno rimossi in v2.0.0.
+
+## [1.0.x]
+
 ### Added
 
 - Nuovo `docs/OPERATIONS.md` con runbook operativo di build, deploy e verifica.

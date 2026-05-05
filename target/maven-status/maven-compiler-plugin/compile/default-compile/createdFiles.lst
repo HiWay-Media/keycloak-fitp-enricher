@@ -1,2 +1,6 @@
+com/hiwaymedia/keycloak/graph/GraphProfile.class
+com/hiwaymedia/keycloak/graph/GraphException.class
 com/hiwaymedia/keycloak/FitpEnricherAuthenticatorFactory.class
+com/hiwaymedia/keycloak/FitpEnricherIdentityProviderMapper.class
 com/hiwaymedia/keycloak/FitpEnricherAuthenticator.class
+com/hiwaymedia/keycloak/graph/GraphClient.class
