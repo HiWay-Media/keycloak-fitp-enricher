@@ -6,6 +6,10 @@ Il formato segue Keep a Changelog e Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Nuova documentazione tecnica `docs/ARCHITECTURE.md`: panoramica del sistema, diagrammi Mermaid (componenti, sequenza primo login, sequenza login successivi, logica interna GraphClient, modello dati/classi), tabella parametri di configurazione, spiegazione SPI service loader e nota sul componente legacy deprecato.
+
 ## [1.1.0] - 2026-05-05
 
 ### Added
