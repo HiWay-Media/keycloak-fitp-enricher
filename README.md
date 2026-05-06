@@ -1,5 +1,7 @@
 # FITP Profile Enricher
 
+> Versione corrente: **0.2.0**
+
 Plugin Keycloak che, su login via FITP/B2C, chiama Microsoft Graph per recuperare
 `email`, `firstName`, `lastName` dell'utente, li popola sull'utente Keycloak e
 imposta sempre `username = email`.
@@ -26,7 +28,10 @@ fitp-enricher/
 ├── pom.xml
 ├── settings.gradle.kts
 ├── README.md
-├── docs/OPERATIONS.md
+├── CHANGELOG.md
+├── docs/
+│   ├── OPERATIONS.md
+│   └── ARCHITECTURE.md
 └── src/main/
     ├── java/com/hiwaymedia/keycloak/
     │   ├── FitpEnricherAuthenticator.java
@@ -79,7 +84,7 @@ Output: `build/libs/fitp-enricher-0.2.0.jar` (Gradle) o `target/fitp-enricher-0.
 
 - Su ogni login via FITP, l'authenticator gira nel Post Login Flow.
 - Se l'utente non ha email, viene chiamata Microsoft Graph per recuperare email/firstName/lastName.
-- Se l'email è valorizzata e diversa dallo username corrente, lo `username` viene riallineato a `email`. Questo guarisce automaticamente gli utenti esistenti con username = OID al loro prossimo login.
+- Se l'email è valorizzata e diversa dallo username corrente, lo `username` viene riallineato a `email`. Il rename gira **anche quando il fetch Graph è skippato** (email già presente), così gli utenti esistenti con username = OID/UUID vengono guariti automaticamente al loro prossimo login.
 - **Token Graph cachato** in memoria (~1h).
 - **Retry breve** su timeout / 429 / 503, fino a `retryCount` volte con backoff fisso 250ms. Mai retry su 401/403/404.
 - **Fail-safe**: con `Blocca login in caso di errore = Off` il login passa anche se Graph è down (utente con campi vuoti). Con `On` si interrompe il flow.
@@ -94,3 +99,9 @@ Errori comuni:
 - `401` su token endpoint: secret scaduto/non valido.
 - `403` da Graph: permessi app insufficienti o admin consent mancante.
 - `404` da Graph: tenant o oid errato.
+
+## Documentazione correlata
+
+- [CHANGELOG.md](CHANGELOG.md) — storico delle versioni.
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) — runbook di build, deploy e verifica.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — dettagli architetturali.
