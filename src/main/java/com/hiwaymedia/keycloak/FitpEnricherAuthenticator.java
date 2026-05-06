@@ -15,17 +15,9 @@ import org.keycloak.models.UserModel;
 import java.util.Map;
 
 /**
- * DEPRECATO: usa {@link FitpEnricherIdentityProviderMapper} sull'IdP FITP.
- *
- * Questo authenticator, montato in un Post Login Flow, gira DOPO la creazione dell'utente
- * da parte del First Login Flow. Se il First Login Flow legge l'email (review profile, ecc.),
- * fallisce prima ancora di raggiungere il Post Login. Il mapper risolve girando in
- * preprocessFederatedIdentity, prima di qualunque step del First Login Flow.
- *
- * Mantenuto per compatibilita binaria con installazioni esistenti e per "healing" di utenti
- * gia creati con record vuoto. Sara rimosso in v2.0.0.
+ * Post-login authenticator: arricchisce il profilo con dati Microsoft Graph (email,
+ * firstName, lastName) quando assenti, e imposta sempre username = email.
  */
-@Deprecated
 public class FitpEnricherAuthenticator implements Authenticator {
 
     private static final Logger log = Logger.getLogger(FitpEnricherAuthenticator.class);
@@ -39,65 +31,76 @@ public class FitpEnricherAuthenticator implements Authenticator {
             return;
         }
 
-        if (user.getEmail() != null && !user.getEmail().isEmpty()) {
-            log.debugf("Utente %s gia arricchito (email presente), skip", user.getUsername());
-            context.success();
-            return;
-        }
-
         AuthenticatorConfigModel cfgModel = context.getAuthenticatorConfig();
-        if (cfgModel == null || cfgModel.getConfig() == null) {
-            log.error("Authenticator non configurato (manca config nel flow)");
-            context.success();
-            return;
-        }
-        Map<String, String> cfg = cfgModel.getConfig();
+        Map<String, String> cfg = cfgModel != null ? cfgModel.getConfig() : null;
 
-        String tenantId     = cfg.get(FitpEnricherAuthenticatorFactory.CFG_TENANT_ID);
-        String clientId     = cfg.get(FitpEnricherAuthenticatorFactory.CFG_CLIENT_ID);
-        String clientSecret = cfg.get(FitpEnricherAuthenticatorFactory.CFG_CLIENT_SECRET);
-        int timeoutMs       = parseInt(cfg.get(FitpEnricherAuthenticatorFactory.CFG_TIMEOUT_MS), 8000);
-        int retryCount      = parseInt(cfg.get(FitpEnricherAuthenticatorFactory.CFG_RETRY_COUNT), 1);
-        boolean failOnError = Boolean.parseBoolean(
+        boolean failOnError = cfg != null && Boolean.parseBoolean(
                 cfg.getOrDefault(FitpEnricherAuthenticatorFactory.CFG_FAIL_ON_ERROR, "false"));
-        boolean trustEmail  = Boolean.parseBoolean(
-                cfg.getOrDefault(FitpEnricherAuthenticatorFactory.CFG_TRUST_EMAIL, "true"));
 
-        if (isBlank(tenantId) || isBlank(clientId) || isBlank(clientSecret)) {
-            log.error("Config incompleta: tenantId/clientId/clientSecret obbligatori");
-            handleFailure(context, failOnError);
-            return;
-        }
+        if (isBlank(user.getEmail())) {
+            if (cfg == null) {
+                log.error("Authenticator non configurato (manca config nel flow)");
+                context.success();
+                return;
+            }
 
-        String oid = user.getUsername();
-        log.infof("Arricchimento profilo Graph per oid=%s", oid);
+            String tenantId     = cfg.get(FitpEnricherAuthenticatorFactory.CFG_TENANT_ID);
+            String clientId     = cfg.get(FitpEnricherAuthenticatorFactory.CFG_CLIENT_ID);
+            String clientSecret = cfg.get(FitpEnricherAuthenticatorFactory.CFG_CLIENT_SECRET);
+            int timeoutMs       = parseInt(cfg.get(FitpEnricherAuthenticatorFactory.CFG_TIMEOUT_MS), 8000);
+            int retryCount      = parseInt(cfg.get(FitpEnricherAuthenticatorFactory.CFG_RETRY_COUNT), 1);
+            boolean trustEmail  = Boolean.parseBoolean(
+                    cfg.getOrDefault(FitpEnricherAuthenticatorFactory.CFG_TRUST_EMAIL, "true"));
 
-        try {
-            GraphProfile p = new GraphClient(tenantId, clientId, clientSecret, timeoutMs, retryCount)
-                    .fetchUserByOid(oid);
+            if (isBlank(tenantId) || isBlank(clientId) || isBlank(clientSecret)) {
+                log.error("Config incompleta: tenantId/clientId/clientSecret obbligatori");
+                handleFailure(context, failOnError);
+                return;
+            }
 
-            if (p.email() != null) {
-                user.setEmail(p.email());
-                if (trustEmail) {
-                    user.setEmailVerified(true);
+            String oid = user.getUsername();
+            log.infof("Arricchimento profilo Graph per oid=%s", oid);
+
+            try {
+                GraphProfile p = createGraphClient(tenantId, clientId, clientSecret, timeoutMs, retryCount)
+                        .fetchUserByOid(oid);
+
+                if (p.email() != null) {
+                    user.setEmail(p.email());
+                    if (trustEmail) {
+                        user.setEmailVerified(true);
+                    }
                 }
-            }
-            if (p.firstName() != null) {
-                user.setFirstName(p.firstName());
-            }
-            if (p.lastName() != null) {
-                user.setLastName(p.lastName());
-            }
+                if (p.firstName() != null) {
+                    user.setFirstName(p.firstName());
+                }
+                if (p.lastName() != null) {
+                    user.setLastName(p.lastName());
+                }
 
-            log.infof("Profilo arricchito oid=%s email=%s firstName=%s lastName=%s",
-                    oid, user.getEmail(), user.getFirstName(), user.getLastName());
+                log.infof("Profilo arricchito oid=%s email=%s firstName=%s lastName=%s",
+                        oid, user.getEmail(), user.getFirstName(), user.getLastName());
 
-            context.success();
-
-        } catch (GraphException e) {
-            log.errorf(e, "Errore Graph per oid=%s status=%d", oid, e.getStatusCode());
-            handleFailure(context, failOnError);
+            } catch (GraphException e) {
+                log.errorf(e, "Errore Graph per oid=%s status=%d", oid, e.getStatusCode());
+                handleFailure(context, failOnError);
+                return;
+            }
         }
+
+        String email = user.getEmail();
+        if (!isBlank(email) && !email.equals(user.getUsername())) {
+            String previous = user.getUsername();
+            user.setUsername(email);
+            log.infof("Username aggiornato: %s -> %s", previous, email);
+        }
+
+        context.success();
+    }
+
+    protected GraphClient createGraphClient(String tenantId, String clientId, String clientSecret,
+                                            int timeoutMs, int retryCount) {
+        return new GraphClient(tenantId, clientId, clientSecret, timeoutMs, retryCount);
     }
 
     private void handleFailure(AuthenticationFlowContext context, boolean failOnError) {

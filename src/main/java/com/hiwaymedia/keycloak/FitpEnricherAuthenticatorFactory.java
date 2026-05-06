@@ -11,12 +11,9 @@ import org.keycloak.provider.ProviderConfigProperty;
 import java.util.List;
 
 /**
- * DEPRECATO: usa {@link FitpEnricherIdentityProviderMapperFactory} (mapper sull'IdP FITP).
- *
- * Espone i campi di config nella UI Keycloak per il vecchio Authenticator in Post Login Flow.
- * Mantenuto per compatibilita; verra rimosso in v2.0.0.
+ * Espone i campi di config nella UI Keycloak per l'Authenticator FITP Profile Enricher,
+ * da inserire in un Post Login Flow.
  */
-@Deprecated
 public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
     public static final String PROVIDER_ID = "fitp-enricher";
@@ -58,10 +55,9 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getHelpText() {
-        return "DEPRECATO: usa il mapper 'FITP Profile Enricher Mapper' sull'IdP FITP. "
-             + "Questo authenticator gira nel Post Login Flow, dopo la creazione utente: "
-             + "se il First Login Flow legge l'email il login fallisce con 'Email is null'. "
-             + "Mantenuto solo per healing legacy di utenti gia creati con record vuoto.";
+        return "Da inserire in un Post Login Flow sull'IdP FITP. "
+             + "Recupera email/firstName/lastName da Microsoft Graph (se mancanti) e "
+             + "imposta sempre username = email sull'utente Keycloak.";
     }
 
     @Override
