@@ -71,6 +71,9 @@ fi
 DISPLAY=$(echo "$PROVIDERS" | jq -r --arg id "$PROVIDER_ID" '.[] | select(.id==$id) | .displayName')
 log "       ok (displayName: $DISPLAY)"
 
+log "       admin provider info (entry per '$PROVIDER_ID'):"
+echo "$PROVIDERS" | jq --arg id "$PROVIDER_ID" '.[] | select(.id==$id)' | sed 's/^/         /'
+
 log "[4/4] Verifico le ProviderConfigProperty esposte dalla factory ..."
 CFG=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
   "$KC_URL/admin/realms/master/authentication/config-description/$PROVIDER_ID") \
@@ -86,6 +89,10 @@ for name in "${EXPECTED_PROPS[@]}"; do
   fi
 done
 [ "$missing" = 0 ] || fail "$missing ProviderConfigProperty mancanti"
+
+log "       config-description (output Admin REST API):"
+echo "$CFG" | jq '{providerId, properties: [.properties[] | {name, label, type, defaultValue}]}' \
+  | sed 's/^/         /'
 
 KC_VERSION=$(echo "$TOKEN_JSON" | jq -r '.access_token' \
   | awk -F. '{print $2}' \

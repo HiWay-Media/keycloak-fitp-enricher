@@ -59,15 +59,57 @@ jobs:
           echo "name=$jar" >> "$GITHUB_OUTPUT"
           echo "Using jar: $jar"
 
-      - name: Run smoke test against ${{ matrix.keycloak }}
+      - name: Start Keycloak ${{ matrix.keycloak }} in background
+        env:
+          KEYCLOAK_IMAGE: ${{ matrix.keycloak }}
+          PLUGIN_JAR: ${{ steps.jar.outputs.name }}
+          JAR_DIR: ./build/libs
+        run: docker compose -f docker-compose.test.yml up -d postgres keycloak
+
+      - name: Wait for Keycloak admin REST API
+        run: |
+          for i in $(seq 1 180); do
+            if curl -fsS http://localhost:8080/realms/master/.well-known/openid-configuration >/dev/null; then
+              echo "ready after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "Keycloak non pronto dopo 180s"; exit 1
+
+      - name: Verify fitp-enricher in admin provider info
+        run: |
+          set -euo pipefail
+          TOKEN=$(curl -fsS -X POST \
+            -d "client_id=admin-cli" -d "username=admin" -d "password=admin" \
+            -d "grant_type=password" \
+            http://localhost:8080/realms/master/protocol/openid-connect/token \
+            | jq -r .access_token)
+
+          echo "::group::admin provider info — fitp-enricher entry"
+          PROVIDERS=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
+            http://localhost:8080/admin/realms/master/authentication/authenticator-providers)
+          ENTRY=$(echo "$PROVIDERS" | jq '.[] | select(.id=="fitp-enricher")')
+          if [ -z "$ENTRY" ]; then
+            echo "FAIL: fitp-enricher non e' in admin provider info"
+            echo "$PROVIDERS" | jq -r '.[].id' | sed 's/^/  - /'
+            exit 1
+          fi
+          echo "$ENTRY"
+          echo "::endgroup::"
+
+          echo "::group::config-description (proprieta esposte dalla factory)"
+          curl -fsS -H "Authorization: Bearer $TOKEN" \
+            http://localhost:8080/admin/realms/master/authentication/config-description/fitp-enricher \
+            | jq '{providerId, properties: [.properties[] | {name, label, type, defaultValue}]}'
+          echo "::endgroup::"
+
+      - name: Run full smoke test (binary compatibility check)
         env:
           KEYCLOAK_IMAGE: ${{ matrix.keycloak }}
           PLUGIN_JAR: ${{ steps.jar.outputs.name }}
           JAR_DIR: ./build/libs
         run: |
-          docker compose -f docker-compose.test.yml up \
-            --abort-on-container-exit \
-            --exit-code-from smoke-tests
+          docker compose -f docker-compose.test.yml run --rm smoke-tests
 
       - name: Dump Keycloak logs on failure
         if: failure()
