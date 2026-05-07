@@ -1,0 +1,92 @@
+name: Keycloak compatibility matrix
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+          cache: gradle
+
+      - name: Build JAR
+        run: gradle build -x test
+
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jar
+          path: build/libs/fitp-enricher-*.jar
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        keycloak:
+          - quay.io/keycloak/keycloak:22.0.5
+          - quay.io/keycloak/keycloak:23.0.7
+          - quay.io/keycloak/keycloak:24.0.5
+          - quay.io/keycloak/keycloak:25.0.6
+          - quay.io/keycloak/keycloak:26.0
+    name: smoke (${{ matrix.keycloak }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download jar
+        uses: actions/download-artifact@v4
+        with:
+          name: plugin-jar
+          path: build/libs
+
+      - name: Resolve plugin jar name
+        id: jar
+        run: |
+          jar=$(ls build/libs/fitp-enricher-*.jar | head -n1 | xargs basename)
+          echo "name=$jar" >> "$GITHUB_OUTPUT"
+          echo "Using jar: $jar"
+
+      - name: Run smoke test against ${{ matrix.keycloak }}
+        env:
+          KEYCLOAK_IMAGE: ${{ matrix.keycloak }}
+          PLUGIN_JAR: ${{ steps.jar.outputs.name }}
+          JAR_DIR: ./build/libs
+        run: |
+          docker compose -f docker-compose.test.yml up \
+            --abort-on-container-exit \
+            --exit-code-from smoke-tests
+
+      - name: Dump Keycloak logs on failure
+        if: failure()
+        env:
+          KEYCLOAK_IMAGE: ${{ matrix.keycloak }}
+          PLUGIN_JAR: ${{ steps.jar.outputs.name }}
+          JAR_DIR: ./build/libs
+        run: |
+          echo "::group::keycloak logs"
+          docker compose -f docker-compose.test.yml logs keycloak || true
+          echo "::endgroup::"
+          echo "::group::smoke-tests logs"
+          docker compose -f docker-compose.test.yml logs smoke-tests || true
+          echo "::endgroup::"
+
+      - name: Tear down
+        if: always()
+        env:
+          KEYCLOAK_IMAGE: ${{ matrix.keycloak }}
+          PLUGIN_JAR: ${{ steps.jar.outputs.name }}
+          JAR_DIR: ./build/libs
+        run: docker compose -f docker-compose.test.yml down -v
