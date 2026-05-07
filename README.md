@@ -29,9 +29,18 @@ fitp-enricher/
 ├── settings.gradle.kts
 ├── README.md
 ├── CHANGELOG.md
+├── docker-compose.yml              # dev locale (Keycloak 22.0.1)
+├── docker-compose.test.yml         # smoke test parametrico per matrice di versioni
 ├── docs/
 │   ├── OPERATIONS.md
 │   └── ARCHITECTURE.md
+├── scripts/
+│   ├── smoke-test.sh               # verifica via Admin REST API che il provider sia registrato
+│   └── test-matrix.sh              # itera lo smoke test su piu versioni di Keycloak
+├── .github/workflows/
+│   ├── ci.yml                      # build PR/push
+│   ├── keycloak-compat.yml         # matrice di compatibilita Keycloak 22 -> 26
+│   └── release.yml
 └── src/main/
     ├── java/com/hiwaymedia/keycloak/
     │   ├── FitpEnricherAuthenticator.java
@@ -79,6 +88,54 @@ Output: `build/libs/fitp-enricher-0.2.0.jar` (Gradle) o `target/fitp-enricher-0.
 ### 2. Aggancia il flow all'IdP FITP
 
 - **Identity providers > FITP > Advanced settings > Post login flow** = `fitp post login`.
+
+## Test di compatibilità
+
+Verifica che il jar si carichi correttamente e che `fitp-enricher` sia registrato nell'Admin REST API di Keycloak (`/admin/realms/master/authentication/authenticator-providers`) con tutte le 7 `ProviderConfigProperty`. È uno smoke test di **binary compatibility**: se l'SPI di Keycloak cambia firma in una versione futura, il provider non viene caricato e il test fallisce.
+
+### Prerequisiti
+
+- Docker daemon in esecuzione
+- Jar compilato in `build/libs/fitp-enricher-0.2.0.jar` (`gradle build`) oppure `target/fitp-enricher-0.2.0.jar` (`mvn clean package` + `JAR_DIR=./target`)
+
+### Singola versione
+
+```bash
+gradle build
+docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from smoke-tests
+# altra versione:
+KEYCLOAK_IMAGE=quay.io/keycloak/keycloak:25.0.6 \
+  docker compose -f docker-compose.test.yml up --abort-on-container-exit --exit-code-from smoke-tests
+```
+
+### Matrice di versioni in locale
+
+```bash
+./scripts/test-matrix.sh
+# matrice custom:
+IMAGES="quay.io/keycloak/keycloak:24.0.5 quay.io/keycloak/keycloak:26.1" ./scripts/test-matrix.sh
+```
+
+Default testati: `22.0.5`, `23.0.7`, `24.0.5`, `25.0.6`, `26.0`. Output: riepilogo PASS/FAIL per versione, exit code `1` se almeno una fallisce.
+
+### Matrice in CI (GitHub Actions)
+
+Il workflow [.github/workflows/keycloak-compat.yml](.github/workflows/keycloak-compat.yml) gira su push `main`, su ogni PR e via `workflow_dispatch`. Per ogni versione della matrice:
+
+1. Builda il jar (`gradle build -x test`) e lo carica come artifact.
+2. Avvia Postgres + Keycloak + plugin via `docker-compose.test.yml`.
+3. Stampa nel log della Action il JSON di `fitp-enricher` da admin provider info e da `config-description` (gruppi collassabili).
+4. Esegue lo `scripts/smoke-test.sh` per verificare le 7 `ProviderConfigProperty`.
+5. Su failure dumpa i log di Keycloak e dello smoke-test.
+
+### Variabili supportate
+
+| Variabile | Default | Note |
+|---|---|---|
+| `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.0` | immagine Keycloak da testare |
+| `PLUGIN_JAR` | `fitp-enricher-0.2.0.jar` | nome del jar |
+| `JAR_DIR` | `./build/libs` | usa `./target` per Maven |
+| `IMAGES` | (lista default in `test-matrix.sh`) | override matrice locale |
 
 ## Comportamento
 
