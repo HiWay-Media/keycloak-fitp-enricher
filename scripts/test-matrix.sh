@@ -23,7 +23,7 @@ else
   IMAGES_ARR=("${DEFAULT_IMAGES[@]}")
 fi
 
-JAR="${PLUGIN_JAR:-fitp-enricher-0.2.0.jar}"
+JAR="${PLUGIN_JAR:-fitp-enricher-0.2.1.jar}"
 JAR_DIR="${JAR_DIR:-./build/libs}"
 if [ ! -f "$JAR_DIR/$JAR" ]; then
   echo "ERRORE: $JAR_DIR/$JAR non trovato." >&2

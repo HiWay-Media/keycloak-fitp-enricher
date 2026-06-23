@@ -4,6 +4,12 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 
 Il formato segue Keep a Changelog e Semantic Versioning.
 
+## [0.2.1] - 2026-06-23
+
+### Added
+
+- `DiagOIDCIdentityProvider` + `DiagOIDCIdentityProviderFactory`: override diagnostico del provider OIDC built-in (stesso id `oidc`, `order()=100`, nessuna modifica al realm) che logga `iat`/`exp`/`nbf` dell'id_token confrontati con l'ora del nodo per diagnosticare l'errore intermittente "Token is no longer valid" sul callback del broker FITP/B2C. Logga una riga `WARN [FITP-DIAG]` con `expiredBy`/`notYetValidFor`. **Codice diagnostico temporaneo**: da rimuovere a diagnosi conclusa.
+
 ## [0.2.0] - 2026-05-06
 
 ### Removed

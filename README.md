@@ -1,6 +1,6 @@
 # FITP Profile Enricher
 
-> Versione corrente: **0.2.0**
+> Versione corrente: **0.2.1**
 
 Plugin Keycloak che, su login via FITP/B2C, chiama Microsoft Graph per recuperare
 `email`, `firstName`, `lastName` dell'utente, li popola sull'utente Keycloak e
@@ -61,7 +61,7 @@ gradle clean build
 mvn clean package
 ```
 
-Output: `build/libs/fitp-enricher-0.2.0.jar` (Gradle) o `target/fitp-enricher-0.2.0.jar` (Maven).
+Output: `build/libs/fitp-enricher-0.2.1.jar` (Gradle) o `target/fitp-enricher-0.2.1.jar` (Maven).
 
 ## Deploy
 
@@ -96,7 +96,7 @@ Verifica che il jar si carichi correttamente e che `fitp-enricher` sia registrat
 ### Prerequisiti
 
 - Docker daemon in esecuzione
-- Jar compilato in `build/libs/fitp-enricher-0.2.0.jar` (`gradle build`) oppure `target/fitp-enricher-0.2.0.jar` (`mvn clean package` + `JAR_DIR=./target`)
+- Jar compilato in `build/libs/fitp-enricher-0.2.1.jar` (`gradle build`) oppure `target/fitp-enricher-0.2.1.jar` (`mvn clean package` + `JAR_DIR=./target`)
 
 ### Singola versione
 
@@ -133,7 +133,7 @@ Il workflow [.github/workflows/keycloak-compat.yml](.github/workflows/keycloak-c
 | Variabile | Default | Note |
 |---|---|---|
 | `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.0` | immagine Keycloak da testare |
-| `PLUGIN_JAR` | `fitp-enricher-0.2.0.jar` | nome del jar |
+| `PLUGIN_JAR` | `fitp-enricher-0.2.1.jar` | nome del jar |
 | `JAR_DIR` | `./build/libs` | usa `./target` per Maven |
 | `IMAGES` | (lista default in `test-matrix.sh`) | override matrice locale |
 
