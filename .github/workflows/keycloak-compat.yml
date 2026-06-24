@@ -76,7 +76,7 @@ jobs:
           done
           echo "Keycloak non pronto dopo 180s"; exit 1
 
-      - name: Verify fitp-enricher in admin provider info
+      - name: Verify fitp-broker-enricher in admin provider info
         run: |
           set -euo pipefail
           TOKEN=$(curl -fsS -X POST \
@@ -85,12 +85,12 @@ jobs:
             http://localhost:8080/realms/master/protocol/openid-connect/token \
             | jq -r .access_token)
 
-          echo "::group::admin provider info — fitp-enricher entry"
+          echo "::group::admin provider info — fitp-broker-enricher entry"
           PROVIDERS=$(curl -fsS -H "Authorization: Bearer $TOKEN" \
             http://localhost:8080/admin/realms/master/authentication/authenticator-providers)
-          ENTRY=$(echo "$PROVIDERS" | jq '.[] | select(.id=="fitp-enricher")')
+          ENTRY=$(echo "$PROVIDERS" | jq '.[] | select(.id=="fitp-broker-enricher")')
           if [ -z "$ENTRY" ]; then
-            echo "FAIL: fitp-enricher non e' in admin provider info"
+            echo "FAIL: fitp-broker-enricher non e' in admin provider info"
             echo "$PROVIDERS" | jq -r '.[].id' | sed 's/^/  - /'
             exit 1
           fi
@@ -99,7 +99,7 @@ jobs:
 
           echo "::group::config-description (proprieta esposte dalla factory)"
           curl -fsS -H "Authorization: Bearer $TOKEN" \
-            http://localhost:8080/admin/realms/master/authentication/config-description/fitp-enricher \
+            http://localhost:8080/admin/realms/master/authentication/config-description/fitp-broker-enricher \
             | jq '{providerId, properties: [.properties[] | {name, label, type, defaultValue}]}'
           echo "::endgroup::"
 

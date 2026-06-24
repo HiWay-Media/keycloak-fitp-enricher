@@ -1,16 +1,18 @@
 # FITP Profile Enricher
 
-> Versione corrente: **0.2.1**
+> Versione corrente: **0.3.0**
 
-Plugin Keycloak che, su login via FITP/B2C, chiama Microsoft Graph per recuperare
-`email`, `firstName`, `lastName` dell'utente, li popola sull'utente Keycloak e
-imposta sempre `username = email`.
+Plugin Keycloak che, sul **primo login** via FITP/B2C, chiama Microsoft Graph per
+recuperare `email`, `firstName`, `lastName` e li inietta nel *brokered identity context*
+**prima** della creazione utente, così che creazione e deduplica per email funzionino
+anche quando Azure AD B2C non emette l'email nel token.
 
-Risolve il caso in cui Azure AD B2C non emette questi claim nel token, e impedisce
-che lo username resti l'OID/UUID di B2C.
+Risolve il primo login fallito (B2C senza email) e i **duplicati di account** (la
+deduplica per email è possibile solo se l'email è presente al broker-time).
 
-Il plugin espone **un solo componente**: l'Authenticator `fitp-enricher`, da inserire
-in un Post Login Flow sull'IdP FITP.
+Il plugin espone **un solo componente**: l'Authenticator `fitp-broker-enricher`, da
+inserire come **primo step (REQUIRED)** del First Broker Login flow dell'IdP FITP,
+prima di `Create User If Unique`.
 
 ## Requisiti
 
@@ -43,8 +45,8 @@ fitp-enricher/
 │   └── release.yml
 └── src/main/
     ├── java/com/hiwaymedia/keycloak/
-    │   ├── FitpEnricherAuthenticator.java
-    │   ├── FitpEnricherAuthenticatorFactory.java
+    │   ├── broker/FitpBrokerEnricherAuthenticator.java
+    │   ├── broker/FitpBrokerEnricherAuthenticatorFactory.java
     │   └── graph/
     │       ├── GraphClient.java
     │       ├── GraphProfile.java
@@ -61,7 +63,7 @@ gradle clean build
 mvn clean package
 ```
 
-Output: `build/libs/fitp-enricher-0.2.1.jar` (Gradle) o `target/fitp-enricher-0.2.1.jar` (Maven).
+Output: `build/libs/fitp-enricher-0.3.0.jar` (Gradle) o `target/fitp-enricher-0.3.0.jar` (Maven).
 
 ## Deploy
 
@@ -71,32 +73,42 @@ Output: `build/libs/fitp-enricher-0.2.1.jar` (Gradle) o `target/fitp-enricher-0.
 
 ## Configurazione in Keycloak
 
-### 1. Crea il Post Login Flow
+### 1. Inserisci l'enricher nel First Broker Login flow
 
-- **Authentication > Flows > Create flow**
-- Nome: `fitp post login`, Top level flow type: `Generic`.
-- Aggiungi step `FITP Profile Enricher` con Requirement `REQUIRED`.
-- Configura lo step:
+Lo step va **prima** di `Create User If Unique`. Poiché un elemento `REQUIRED` disabilita
+gli `ALTERNATIVE` allo stesso livello, i due step di linking vanno in un **sub-flow REQUIRED**:
+
+```
+First Broker Login flow
+├─ FITP Broker Enricher                 REQUIRED   ← questo plugin
+└─ sub-flow "create-or-link"            REQUIRED
+   ├─ Create User If Unique             ALTERNATIVE
+   └─ Automatically set existing user   ALTERNATIVE
+```
+
+Configura lo step `FITP Broker Enricher`:
   - `Azure Tenant ID`
   - `App Registration Client ID`
   - `App Registration Client Secret`
   - `Timeout HTTP (ms)` — default `8000`
   - `Numero retry` — default `1`
-  - `Blocca login in caso di errore` — default `Off`
-  - `Marca email come verificata` — default `On`
+  - `Blocca login in caso di errore` — default `On` (fail-closed)
+  - `Username dell'utente Keycloak` — default `email`
 
 ### 2. Aggancia il flow all'IdP FITP
 
-- **Identity providers > FITP > Advanced settings > Post login flow** = `fitp post login`.
+- **Identity providers > FITP > First login flow** = il flow sopra.
+- **Post login flow** = `none` (l'enrichment non è più post-login).
+- Per marcare l'email come verificata: **Advanced settings > Trust Email = On**.
 
 ## Test di compatibilità
 
-Verifica che il jar si carichi correttamente e che `fitp-enricher` sia registrato nell'Admin REST API di Keycloak (`/admin/realms/master/authentication/authenticator-providers`) con tutte le 7 `ProviderConfigProperty`. È uno smoke test di **binary compatibility**: se l'SPI di Keycloak cambia firma in una versione futura, il provider non viene caricato e il test fallisce.
+Verifica che il jar si carichi correttamente e che `fitp-broker-enricher` sia registrato nell'Admin REST API di Keycloak (`/admin/realms/master/authentication/authenticator-providers`) con tutte le 7 `ProviderConfigProperty`. È uno smoke test di **binary compatibility**: se l'SPI di Keycloak cambia firma in una versione futura, il provider non viene caricato e il test fallisce.
 
 ### Prerequisiti
 
 - Docker daemon in esecuzione
-- Jar compilato in `build/libs/fitp-enricher-0.2.1.jar` (`gradle build`) oppure `target/fitp-enricher-0.2.1.jar` (`mvn clean package` + `JAR_DIR=./target`)
+- Jar compilato in `build/libs/fitp-enricher-0.3.0.jar` (`gradle build`) oppure `target/fitp-enricher-0.3.0.jar` (`mvn clean package` + `JAR_DIR=./target`)
 
 ### Singola versione
 
@@ -124,7 +136,7 @@ Il workflow [.github/workflows/keycloak-compat.yml](.github/workflows/keycloak-c
 
 1. Builda il jar (`gradle build -x test`) e lo carica come artifact.
 2. Avvia Postgres + Keycloak + plugin via `docker-compose.test.yml`.
-3. Stampa nel log della Action il JSON di `fitp-enricher` da admin provider info e da `config-description` (gruppi collassabili).
+3. Stampa nel log della Action il JSON di `fitp-broker-enricher` da admin provider info e da `config-description` (gruppi collassabili).
 4. Esegue lo `scripts/smoke-test.sh` per verificare le 7 `ProviderConfigProperty`.
 5. Su failure dumpa i log di Keycloak e dello smoke-test.
 
@@ -133,23 +145,23 @@ Il workflow [.github/workflows/keycloak-compat.yml](.github/workflows/keycloak-c
 | Variabile | Default | Note |
 |---|---|---|
 | `KEYCLOAK_IMAGE` | `quay.io/keycloak/keycloak:26.0` | immagine Keycloak da testare |
-| `PLUGIN_JAR` | `fitp-enricher-0.2.1.jar` | nome del jar |
+| `PLUGIN_JAR` | `fitp-enricher-0.3.0.jar` | nome del jar |
 | `JAR_DIR` | `./build/libs` | usa `./target` per Maven |
 | `IMAGES` | (lista default in `test-matrix.sh`) | override matrice locale |
 
 ## Comportamento
 
-- Su ogni login via FITP, l'authenticator gira nel Post Login Flow.
-- Se l'utente non ha email, viene chiamata Microsoft Graph per recuperare email/firstName/lastName.
-- Se l'email è valorizzata e diversa dallo username corrente, lo `username` viene riallineato a `email`. Il rename gira **anche quando il fetch Graph è skippato** (email già presente), così gli utenti esistenti con username = OID/UUID vengono guariti automaticamente al loro prossimo login.
+- Gira solo al **primo login** di un utente FITP (i login successivi matchano via federated link e non passano dal First Broker Login flow → nessuna chiamata Graph per-login).
+- Recupera email/firstName/lastName da Microsoft Graph usando l'OID del brokered identity e li **inietta nel brokered context** prima di `Create User If Unique`.
+- Con `Username dell'utente Keycloak = email`, imposta anche lo `username` del nuovo utente all'email (coerente con *Email as username*).
 - **Token Graph cachato** in memoria (~1h).
 - **Retry breve** su timeout / 429 / 503, fino a `retryCount` volte con backoff fisso 250ms. Mai retry su 401/403/404.
-- **Fail-safe**: con `Blocca login in caso di errore = Off` il login passa anche se Graph è down (utente con campi vuoti). Con `On` si interrompe il flow.
+- **Fail-closed** (default `On`): se Graph è down o non restituisce email, il login si interrompe invece di creare un utente senza email (che fallirebbe la creazione e genererebbe duplicati). Con `Off` lascia proseguire il flow.
 
 ## Troubleshooting
 
 Filtra i log Keycloak su:
-- `com.hiwaymedia.keycloak.FitpEnricherAuthenticator`
+- `com.hiwaymedia.keycloak.broker.FitpBrokerEnricherAuthenticator`
 - `com.hiwaymedia.keycloak.graph.GraphClient`
 
 Errori comuni:

@@ -9,7 +9,7 @@
 #
 # Variabili:
 #   KEYCLOAK_IMAGE  immagine Keycloak da testare (default: 26.0)
-#   PLUGIN_JAR      nome del jar (default: fitp-enricher-0.2.1.jar)
+#   PLUGIN_JAR      nome del jar (default: fitp-enricher-0.3.0.jar)
 #   JAR_DIR         directory che contiene il jar (default: ./build/libs per Gradle; usa ./target per Maven)
 
 services:
@@ -43,7 +43,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ${JAR_DIR:-./build/libs}/${PLUGIN_JAR:-fitp-enricher-0.2.1.jar}:/opt/keycloak/providers/${PLUGIN_JAR:-fitp-enricher-0.2.1.jar}:ro
+      - ${JAR_DIR:-./build/libs}/${PLUGIN_JAR:-fitp-enricher-0.3.0.jar}:/opt/keycloak/providers/${PLUGIN_JAR:-fitp-enricher-0.3.0.jar}:ro
     depends_on:
       postgres:
         condition: service_healthy

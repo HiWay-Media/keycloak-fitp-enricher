@@ -4,6 +4,22 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 
 Il formato segue Keep a Changelog e Semantic Versioning.
 
+## [0.3.0] - 2026-06-24
+
+### Added
+
+- `FitpBrokerEnricherAuthenticator` (+ Factory): authenticator del **First Broker Login flow** che arricchisce il `BrokeredIdentityContext` da Microsoft Graph (email/firstName/lastName) **prima** di `Create User If Unique`. Va inserito come primo step `REQUIRED` del flow (con i due step di linking in un sub-flow `REQUIRED`). Risolve il primo login fallito su B2C senza email e i **duplicati di account** (la deduplica per email funziona solo se l'email è presente al broker-time). **Fail-closed** di default.
+
+### Removed
+
+- `FitpEnricherAuthenticator` (+ Factory): l'enrichment passa dal Post Login Flow al First Broker Login flow; l'update/rename post-login non è più necessario.
+- `DiagOIDCIdentityProvider` (+ Factory): provider diagnostico temporaneo introdotto in 0.2.1, rimosso a diagnosi conclusa. La causa di "Token is no longer valid" era `nbf`/clock skew con `Allowed clock skew = 0`, risolta alzando l'Allowed clock skew sull'IdP.
+
+### Changed
+
+- Il componente unico del plugin è ora l'authenticator broker-flow `fitp-broker-enricher`.
+- Smoke test e workflow di compatibilità aggiornati al nuovo provider id `fitp-broker-enricher`.
+
 ## [0.2.1] - 2026-06-23
 
 ### Added

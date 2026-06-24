@@ -1,1 +1,1 @@
-com.hiwaymedia.keycloak.FitpEnricherAuthenticatorFactory
+com.hiwaymedia.keycloak.broker.FitpBrokerEnricherAuthenticatorFactory

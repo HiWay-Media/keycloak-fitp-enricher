@@ -1,4 +1,4 @@
-package com.hiwaymedia.keycloak;
+package com.hiwaymedia.keycloak.broker;
 
 import org.keycloak.Config;
 import org.keycloak.authentication.Authenticator;
@@ -11,22 +11,26 @@ import org.keycloak.provider.ProviderConfigProperty;
 import java.util.List;
 
 /**
- * Espone i campi di config nella UI Keycloak per l'Authenticator FITP Profile Enricher,
- * da inserire in un Post Login Flow.
+ * Espone la config dell'enricher broker-flow nella UI Keycloak.
+ * Da inserire come PRIMO step (REQUIRED) del First Broker Login flow dell'IdP FITP,
+ * prima di "Create User If Unique".
  */
-public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
+public class FitpBrokerEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
-    public static final String PROVIDER_ID = "fitp-enricher";
+    public static final String PROVIDER_ID = "fitp-broker-enricher";
 
-    public static final String CFG_TENANT_ID     = "graph.tenantId";
-    public static final String CFG_CLIENT_ID     = "graph.clientId";
-    public static final String CFG_CLIENT_SECRET = "graph.clientSecret";
-    public static final String CFG_TIMEOUT_MS    = "graph.timeoutMs";
-    public static final String CFG_RETRY_COUNT   = "graph.retryCount";
-    public static final String CFG_FAIL_ON_ERROR = "graph.failOnError";
-    public static final String CFG_TRUST_EMAIL   = "graph.trustEmail";
+    public static final String CFG_TENANT_ID      = "graph.tenantId";
+    public static final String CFG_CLIENT_ID      = "graph.clientId";
+    public static final String CFG_CLIENT_SECRET  = "graph.clientSecret";
+    public static final String CFG_TIMEOUT_MS     = "graph.timeoutMs";
+    public static final String CFG_RETRY_COUNT    = "graph.retryCount";
+    public static final String CFG_FAIL_ON_ERROR  = "graph.failOnError";
+    public static final String CFG_USERNAME_SOURCE = "username.source";
 
-    private static final FitpEnricherAuthenticator SINGLETON = new FitpEnricherAuthenticator();
+    public static final String USERNAME_SOURCE_EMAIL = "email";
+    public static final String USERNAME_SOURCE_OID   = "oid";
+
+    private static final FitpBrokerEnricherAuthenticator SINGLETON = new FitpBrokerEnricherAuthenticator();
 
     @Override
     public String getId() {
@@ -35,7 +39,7 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getDisplayType() {
-        return "FITP Profile Enricher";
+        return "FITP Broker Enricher";
     }
 
     @Override
@@ -55,9 +59,9 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
 
     @Override
     public String getHelpText() {
-        return "Da inserire in un Post Login Flow sull'IdP FITP. "
-             + "Recupera email/firstName/lastName da Microsoft Graph (se mancanti) e "
-             + "imposta sempre username = email sull'utente Keycloak.";
+        return "Primo step del First Broker Login flow sull'IdP FITP. Recupera email/firstName/lastName "
+             + "da Microsoft Graph e li inietta nel brokered context PRIMA di 'Create User If Unique', "
+             + "cosi creazione e deduplica per email funzionano anche se B2C non emette l'email nel token.";
     }
 
     @Override
@@ -71,8 +75,7 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
         tenantId.setName(CFG_TENANT_ID);
         tenantId.setLabel("Azure Tenant ID");
         tenantId.setType(ProviderConfigProperty.STRING_TYPE);
-        tenantId.setHelpText("Tenant ID o domain del tenant, es: 1c7ef0e8-1ff2-4ac9-9c20-944a0297e57e "
-                + "oppure il domain equivalente");
+        tenantId.setHelpText("Tenant ID o domain del tenant Azure/B2C");
 
         ProviderConfigProperty clientId = new ProviderConfigProperty();
         clientId.setName(CFG_CLIENT_ID);
@@ -105,19 +108,21 @@ public class FitpEnricherAuthenticatorFactory implements AuthenticatorFactory {
         failOnError.setName(CFG_FAIL_ON_ERROR);
         failOnError.setLabel("Blocca login in caso di errore");
         failOnError.setType(ProviderConfigProperty.BOOLEAN_TYPE);
-        failOnError.setDefaultValue("false");
-        failOnError.setHelpText("Se ON, il login fallisce quando Graph non risponde o l'utente non e trovato. "
-                + "Se OFF (default), l'utente entra comunque (con profilo vuoto se la chiamata fallisce).");
+        failOnError.setDefaultValue("true");
+        failOnError.setHelpText("Default ON (fail-closed): se Graph non risponde o non c'e' email, il login "
+                + "si interrompe invece di creare un utente senza email (che poi fallirebbe la creazione). "
+                + "Se OFF, lascia proseguire il flow.");
 
-        ProviderConfigProperty trustEmail = new ProviderConfigProperty();
-        trustEmail.setName(CFG_TRUST_EMAIL);
-        trustEmail.setLabel("Marca email come verificata");
-        trustEmail.setType(ProviderConfigProperty.BOOLEAN_TYPE);
-        trustEmail.setDefaultValue("true");
-        trustEmail.setHelpText("Se ON, l'email recuperata da Graph viene marcata come verificata. "
-                + "Sicuro perche B2C/Entra verificano l'email durante il signup.");
+        ProviderConfigProperty usernameSource = new ProviderConfigProperty();
+        usernameSource.setName(CFG_USERNAME_SOURCE);
+        usernameSource.setLabel("Username dell'utente Keycloak");
+        usernameSource.setType(ProviderConfigProperty.LIST_TYPE);
+        usernameSource.setOptions(List.of(USERNAME_SOURCE_EMAIL, USERNAME_SOURCE_OID));
+        usernameSource.setDefaultValue(USERNAME_SOURCE_EMAIL);
+        usernameSource.setHelpText("Se 'email', imposta lo username del nuovo utente all'email recuperata "
+                + "(coerente con 'Email as username'). Se 'oid', lascia il default OID/sub di B2C.");
 
-        return List.of(tenantId, clientId, clientSecret, timeoutMs, retryCount, failOnError, trustEmail);
+        return List.of(tenantId, clientId, clientSecret, timeoutMs, retryCount, failOnError, usernameSource);
     }
 
     @Override

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Smoke test: verifica che il jar fitp-enricher sia stato caricato correttamente
+# Smoke test: verifica che il jar fitp-broker-enricher sia stato caricato correttamente
 # da Keycloak e che l'AuthenticatorFactory sia binary-compatible con la versione
 # di Keycloak in esecuzione.
 #
 # La verifica e robusta: invece di fidarsi dei log, interroga la Admin REST API
-# per controllare che (a) il provider id "fitp-enricher" sia registrato e
+# per controllare che (a) il provider id "fitp-broker-enricher" sia registrato e
 # (b) la factory esponga TUTTE le 7 ProviderConfigProperty attese.
 # Se uno qualsiasi metodo SPI cambia firma in una versione futura, la factory
 # non viene caricata e il test fallisce.
@@ -14,7 +14,7 @@ set -euo pipefail
 KC_URL="${KC_URL:-http://keycloak:8080}"
 USER="${KC_ADMIN_USER:-admin}"
 PASS="${KC_ADMIN_PASSWORD:-admin}"
-PROVIDER_ID="fitp-enricher"
+PROVIDER_ID="fitp-broker-enricher"
 IMAGE="${KEYCLOAK_IMAGE:-unknown}"
 
 EXPECTED_PROPS=(
@@ -102,7 +102,7 @@ KC_VERSION=$(echo "$TOKEN_JSON" | jq -r '.access_token' \
 cat <<EOF
 
 ============================================================
-PASS: fitp-enricher caricato e binary-compatible
+PASS: fitp-broker-enricher caricato e binary-compatible
        image:    $IMAGE
        provider: $PROVIDER_ID
        props:    ${#EXPECTED_PROPS[@]} / ${#EXPECTED_PROPS[@]}

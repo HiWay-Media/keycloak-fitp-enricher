@@ -17,8 +17,8 @@ mvn clean package
 ```
 
 Output:
-- `build/libs/fitp-enricher-0.2.1.jar` (Gradle)
-- `target/fitp-enricher-0.2.1.jar` (Maven)
+- `build/libs/fitp-enricher-0.3.0.jar` (Gradle)
+- `target/fitp-enricher-0.3.0.jar` (Maven)
 
 ## 3. Deploy in Keycloak
 
