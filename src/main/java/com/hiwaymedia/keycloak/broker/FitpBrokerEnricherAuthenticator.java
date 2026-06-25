@@ -66,7 +66,7 @@ public class FitpBrokerEnricherAuthenticator extends AbstractIdpAuthenticator {
         int timeoutMs  = parseInt(cfg.get(FitpBrokerEnricherAuthenticatorFactory.CFG_TIMEOUT_MS), 8000);
         int retryCount = parseInt(cfg.get(FitpBrokerEnricherAuthenticatorFactory.CFG_RETRY_COUNT), 1);
 
-        String oid = firstNonBlank(brokerContext.getBrokerUserId(), brokerContext.getId(), brokerContext.getUsername());
+        String oid = resolveOid(brokerContext);
         if (isBlank(oid)) {
             log.warn("FITP broker enricher: nessun OID identificabile sul context");
             fail(context, failOnError);
@@ -123,6 +123,30 @@ public class FitpBrokerEnricherAuthenticator extends AbstractIdpAuthenticator {
         } else {
             context.success();
         }
+    }
+
+    /**
+     * Ricava il sub B2C "nudo" da passare a Graph.
+     *
+     * {@code getId()} e' l'id federato (il sub) dal costruttore del context; come fallback
+     * {@code getBrokerUserId()}. Nel First Broker Login Keycloak puo' prefissare username/id
+     * con "&lt;alias&gt;." (es. "fitp.<sub>"): quel prefisso va tolto, altrimenti Graph risponde 404.
+     */
+    static String resolveOid(BrokeredIdentityContext brokerContext) {
+        String alias = brokerContext.getIdpConfig() != null ? brokerContext.getIdpConfig().getAlias() : null;
+        return resolveOid(brokerContext.getId(), brokerContext.getBrokerUserId(), alias);
+    }
+
+    /** Logica pura (testabile senza mock): sceglie il sub e rimuove il prefisso "&lt;alias&gt;.". */
+    static String resolveOid(String id, String brokerUserId, String alias) {
+        String oid = firstNonBlank(id, brokerUserId);
+        if (oid == null) {
+            return null;
+        }
+        if (alias != null && !alias.isEmpty() && oid.startsWith(alias + ".")) {
+            oid = oid.substring(alias.length() + 1);
+        }
+        return oid;
     }
 
     /** Seam per i test: permette di iniettare un GraphClient mocked. */

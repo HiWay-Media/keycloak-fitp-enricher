@@ -4,6 +4,12 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 
 Il formato segue Keep a Changelog e Semantic Versioning.
 
+## [0.3.1] - 2026-06-25
+
+### Fixed
+
+- `FitpBrokerEnricherAuthenticator`: l'OID passato a Microsoft Graph poteva includere il prefisso `<alias>.` (es. `fitp.<sub>`) che Keycloak applica allo username/id generato nel First Broker Login → Graph rispondeva `404 Request_ResourceNotFound` e il primo login falliva. Ora si usa il `sub` nudo (`getId()`, fallback `getBrokerUserId()`) e si rimuove difensivamente l'eventuale prefisso `<alias>.` (regressione introdotta in 0.3.0, dove il vecchio authenticator post-login leggeva il `sub` già nudo da `user.getUsername()`).
+
 ## [0.3.0] - 2026-06-24
 
 ### Added
