@@ -97,6 +97,10 @@ public class FitpBrokerEnricherAuthenticator extends AbstractIdpAuthenticator {
         if (p.lastName() != null) {
             serializedCtx.setLastName(p.lastName());
         }
+        // Brokered username -> finisce in FEDERATED_IDENTITY.FEDERATED_USERNAME.
+        // Lo allineiamo all'email come fanno gli altri IdP (google/apple/fb), che
+        // l'email la portano nel token; B2C no, quindi la impostiamo qui.
+        serializedCtx.setUsername(p.email());
         if (FitpBrokerEnricherAuthenticatorFactory.USERNAME_SOURCE_EMAIL.equals(usernameSource(cfg))) {
             serializedCtx.setModelUsername(p.email());
         }

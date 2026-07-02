@@ -4,6 +4,12 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 
 Il formato segue Keep a Changelog e Semantic Versioning.
 
+## [0.3.2] - 2026-07-02
+
+### Added
+
+- `FitpBrokerEnricherAuthenticator` ora imposta anche il **brokered username** (`serializedCtx.setUsername(email)`), così `FEDERATED_IDENTITY.FEDERATED_USERNAME` per FITP diventa l'email — coerente con gli altri IdP (google/apple/facebook), che l'email la portano nel token. Nota: vale solo per i **nuovi** first-login; le righe federate esistenti non vengono riscritte.
+
 ## [0.3.1] - 2026-06-25
 
 ### Fixed
