@@ -4,6 +4,12 @@ Tutte le modifiche rilevanti a questo progetto sono documentate in questo file.
 
 Il formato segue Keep a Changelog e Semantic Versioning.
 
+## [0.3.3] - 2026-07-02
+
+### Fixed
+
+- `FEDERATED_IDENTITY.FEDERATED_USERNAME` non diventava l'email: in 0.3.2 usavo `serializedCtx.setUsername(email)`, ma in `SerializedBrokeredIdentityContext` sia `setUsername` sia `setModelUsername` scrivono l'attributo `UserModel.USERNAME` (→ `USER_ENTITY.USERNAME`), mentre `deserialize()` ricostruisce `context.getUsername()` (da cui deriva `FEDERATED_USERNAME`) dal campo **`brokerUsername`**. Corretto usando **`serializedCtx.setBrokerUsername(email)`**. Vale solo per i nuovi first-login.
+
 ## [0.3.2] - 2026-07-02
 
 ### Added
